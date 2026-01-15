@@ -4,7 +4,7 @@ import click
 from supabase_client import get_supabase_client
 
 # Version follows MAJOR.MINOR.PATCH
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 
 @click.group()
@@ -46,16 +46,18 @@ def list_todos(show_all: bool):
         return
 
     click.echo()
-    click.echo(f"{'ID':<15} {'Status':<10} {'Title'}")
-    click.echo("-" * 60)
+    click.echo(f"{'ID':<15} {'Status':<10} {'Priority':<10} {'Title'}")
+    click.echo("-" * 70)
 
     for todo in result.data:
         todo_id = todo.get("id", "")
         title = todo.get("title", "")
         completed = todo.get("completed", False)
+        priority = todo.get("priority", 2)
         status = "[x]" if completed else "[ ]"
+        priority_text = {1: "Low", 2: "Medium", 3: "High"}.get(priority, "Medium")
 
-        click.echo(f"{todo_id:<15} {status:<10} {title}")
+        click.echo(f"{todo_id:<15} {status:<10} {priority_text:<10} {title}")
 
     click.echo()
     click.echo(f"Total: {len(result.data)} todo(s)")
@@ -63,7 +65,14 @@ def list_todos(show_all: bool):
 
 @cli.command("add")
 @click.argument("title")
-def add_todo(title: str):
+@click.option(
+    "--priority",
+    "-p",
+    type=click.IntRange(1, 3),
+    default=2,
+    help="Priority level: 1=low, 2=medium, 3=high (default: 2)"
+)
+def add_todo(title: str, priority: int):
     """Add a new TODO.
 
     Examples:
@@ -79,6 +88,7 @@ def add_todo(title: str):
         .insert(
             {
                 "title": title,
+                "priority": priority,
             }
         )
         .execute()
@@ -150,6 +160,80 @@ def uncomplete_todo(todo_id: str):
     else:
         click.echo(f"TODO not found: {todo_id}", err=True)
         raise SystemExit(1)
+
+
+@cli.command("priority")
+@click.argument("todo_id")
+@click.argument("priority", type=click.IntRange(1, 3))
+def set_priority(todo_id: str, priority: int):
+    """Set the priority of a TODO.
+
+    PRIORITY should be 1 (low), 2 (medium), or 3 (high).
+
+    Examples:
+
+        brancher priority todo-abc123 3
+
+        brancher priority todo-def456 1
+    """
+    client = get_supabase_client()
+
+    priority_text = {1: "Low", 2: "Medium", 3: "High"}.get(priority, "Medium")
+
+    result = (
+        client.table("brancher_todos")
+        .update({"priority": priority})
+        .eq("id", todo_id)
+        .execute()
+    )
+
+    if result.data:
+        todo = result.data[0]
+        click.echo(f"Set priority to {priority_text}: {todo['title']}")
+    else:
+        click.echo(f"TODO not found: {todo_id}", err=True)
+        raise SystemExit(1)
+
+
+@cli.command("stats")
+def show_stats():
+    """Show TODO statistics including priority breakdown.
+
+    Examples:
+
+        brancher stats
+    """
+    client = get_supabase_client()
+
+    # Get all todos
+    result = client.table("brancher_todos").select("*").execute()
+
+    if not result.data:
+        click.echo("No TODOs found.")
+        return
+
+    total = len(result.data)
+    completed = len([t for t in result.data if t.get("completed", False)])
+    incomplete = total - completed
+
+    # Priority breakdown
+    priorities = {1: 0, 2: 0, 3: 0}
+    for todo in result.data:
+        priority = todo.get("priority", 2)
+        priorities[priority] += 1
+
+    click.echo()
+    click.echo("TODO Statistics")
+    click.echo("=" * 20)
+    click.echo(f"Total:      {total}")
+    click.echo(f"Completed:  {completed}")
+    click.echo(f"Incomplete: {incomplete}")
+    click.echo()
+    click.echo("Priority Breakdown:")
+    click.echo(f"  High (3):   {priorities[3]}")
+    click.echo(f"  Medium (2): {priorities[2]}")
+    click.echo(f"  Low (1):    {priorities[1]}")
+    click.echo()
 
 
 @cli.command("delete")
