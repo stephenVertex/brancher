@@ -74,6 +74,8 @@ class BrancherApp(App):
         Binding("space", "toggle_todo", "Toggle"),
         Binding("d", "delete_todo", "Delete"),
         Binding("a", "focus_input", "Add"),
+        Binding("j", "cursor_down", "Down", show=False),
+        Binding("k", "cursor_up", "Up", show=False),
     ]
 
     def compose(self) -> ComposeResult:
@@ -126,6 +128,16 @@ class BrancherApp(App):
     def action_focus_input(self) -> None:
         """Focus the input field."""
         self.query_one("#new-todo", Input).focus()
+
+    def action_cursor_down(self) -> None:
+        """Move selection down in the todo list."""
+        list_view = self.query_one("#todo-list", ListView)
+        list_view.action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        """Move selection up in the todo list."""
+        list_view = self.query_one("#todo-list", ListView)
+        list_view.action_cursor_up()
 
     def action_toggle_todo(self) -> None:
         """Toggle the selected todo's completed status."""
